@@ -6,12 +6,12 @@ import { db } from '../firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import clsx from 'clsx';
 
+import { useChat } from '../contexts/ChatContext';
+
 export default function Layout() {
   const { userRole, currentUser } = useAuth();
+  const { totalUnread } = useChat();
   const [pendingRequests, setPendingRequests] = useState(0);
-  const [unreadGlobalCount, setUnreadGlobalCount] = useState(0);
-  const [unreadDirectCount, setUnreadDirectCount] = useState(0);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const location = useLocation();
   
   // Współdzielony stan daty nawigacji dla Grafiku i Profilu (CSV)
@@ -37,44 +37,15 @@ export default function Layout() {
     }
   }, [userRole]);
 
-  useEffect(() => {
-    const handleReadUpdate = () => {
-      setRefreshTrigger(prev => prev + 1);
-    };
-    window.addEventListener('chat_read_update', handleReadUpdate);
-    return () => window.removeEventListener('chat_read_update', handleReadUpdate);
-  }, []);
-
-  useEffect(() => {
-    // Nie czyścimy wszystkiego od razu, Chat.jsx zajmie się czyszczeniem konkretnych kanałów
-  }, [location.pathname]);
-
+  // Tylko notyfikacje przeglądarkowe pozostają w Layout (lub mogą być w osobnym hooku)
   useEffect(() => {
     if (!currentUser) return;
-    
-    let lastVisit = parseInt(localStorage.getItem('lastChatVisit') || '0', 10);
-    if (lastVisit === 0) {
-      lastVisit = Date.now();
-      localStorage.setItem('lastChatVisit', lastVisit.toString());
-    }
 
     const unsubGlobal = onSnapshot(collection(db, 'messages'), (snapshot) => {
-      const readTime = parseInt(localStorage.getItem('lastRead_global') || '0', 10);
-      let count = 0;
-      snapshot.docs.forEach((docSnap) => {
-        const data = docSnap.data();
-        if (data.senderId !== currentUser.uid) {
-          const msgTime = data.createdAt?.toMillis ? data.createdAt.toMillis() : (data.localTimestamp || 0);
-          if (msgTime > readTime) {
-            count++;
-          }
-        }
-      });
-      setUnreadGlobalCount(count);
-      
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const data = change.doc.data();
+          const readTime = parseInt(localStorage.getItem('lastRead_global') || '0', 10);
           if (data.senderId !== currentUser.uid) {
             const msgTime = data.createdAt?.toMillis ? data.createdAt.toMillis() : (data.localTimestamp || Date.now());
             if (msgTime > readTime && window.location.pathname !== '/chat') {
@@ -93,21 +64,6 @@ export default function Layout() {
     const unsubDirect = onSnapshot(
       query(collection(db, 'direct_messages'), where('participants', 'array-contains', currentUser.uid)), 
       (snapshot) => {
-        let totalCount = 0;
-        const processedMessages = new Set(); // Zapobieganie podwójnym notyfikacjom przy zmianach statusu
-
-        snapshot.docs.forEach((docSnap) => {
-          const data = docSnap.data();
-          if (data.senderId !== currentUser.uid) {
-            const readTime = parseInt(localStorage.getItem(`lastRead_direct_${data.senderId}`) || '0', 10);
-            const msgTime = data.createdAt?.toMillis ? data.createdAt.toMillis() : (data.localTimestamp || 0);
-            if (msgTime > readTime) {
-              totalCount++;
-            }
-          }
-        });
-        setUnreadDirectCount(totalCount);
-        
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const data = change.doc.data();
@@ -130,11 +86,11 @@ export default function Layout() {
     );
 
     const unsubImportant = onSnapshot(collection(db, 'important_messages'), (snapshot) => {
-      const readTime = parseInt(localStorage.getItem('lastRead_important') || '0', 10);
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const data = change.doc.data();
           if (data.senderId !== currentUser.uid) {
+            const readTime = parseInt(localStorage.getItem('lastRead_important') || '0', 10);
             const msgTime = data.createdAt?.toMillis ? data.createdAt.toMillis() : (data.localTimestamp || Date.now());
             if (msgTime > readTime && window.location.pathname !== '/chat') {
               if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -154,13 +110,15 @@ export default function Layout() {
       unsubDirect();
       unsubImportant();
     };
-  }, [currentUser, refreshTrigger]);
+  }, [currentUser]);
 
   const navItems = [
     { to: "/", icon: Calendar, label: "Grafik" },
     { to: "/my-shifts", icon: Clock, label: "Moje Zmiany" },
-    { to: "/chat", icon: MessageSquare, label: "Czat", badge: (unreadGlobalCount + unreadDirectCount) > 0 ? (unreadGlobalCount + unreadDirectCount) : false },
+    { to: "/chat", icon: MessageSquare, label: "Czat", badge: totalUnread > 0 ? totalUnread : false },
     { to: "/profile", icon: Menu, label: "Menu" }
+  ];
+bel: "Menu" }
   ];
 
   return (

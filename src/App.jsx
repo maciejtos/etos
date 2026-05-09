@@ -27,28 +27,32 @@ function PrivateRoute({ children }) {
   );
 }
 
+import { ChatProvider } from './contexts/ChatContext';
+
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          
-          <Route path="/" element={
-            <PrivateRoute>
-              <Layout />
-            </PrivateRoute>
-          }>
-            <Route index element={<Schedule />} />
-            <Route path="my-shifts" element={<MyShifts />} />
-            <Route path="exchange" element={<Exchange />} />
-            <Route path="team" element={<Team />} />
-            <Route path="profile" element={<Profile />} />
-            <Route path="chat" element={<Chat />} />
-            <Route path="availabilities" element={<Availabilities />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
+      <ChatProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            
+            <Route path="/" element={
+              <PrivateRoute>
+                <Layout />
+              </PrivateRoute>
+            }>
+              <Route index element={<Schedule />} />
+              <Route path="my-shifts" element={<MyShifts />} />
+              <Route path="exchange" element={<Exchange />} />
+              <Route path="team" element={<Team />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="chat" element={<Chat />} />
+              <Route path="availabilities" element={<Availabilities />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </ChatProvider>
     </AuthProvider>
   );
 }

@@ -10,9 +10,11 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { pl } from 'date-fns/locale';
 import clsx from 'clsx';
 import { Users, MessageSquare, ChevronLeft, Send, AlertCircle, User, Camera, X } from 'lucide-react';
+import { useChat } from '../contexts/ChatContext';
 
 export default function Chat() {
   const { currentUser, userRole } = useAuth();
+  const { unreadCounts, markAsRead } = useChat();
   const [chatType, setChatType] = useState('global'); // 'global', 'important', 'direct'
   const [selectedUser, setSelectedUser] = useState(null);
   const [users, setUsers] = useState([]);
@@ -21,7 +23,6 @@ export default function Chat() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showUserList, setShowUserList] = useState(true);
-  const [unreadCounts, setUnreadCounts] = useState({ global: 0, important: 0, direct: {} });
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -77,96 +78,20 @@ export default function Chat() {
     return () => clearInterval(interval);
   }, [currentUser?.uid]);
 
-  // Licznik nieprzeczytanych wiadomości dla wszystkich kanałów
-  useEffect(() => {
-    if (!currentUser) return;
-
-    // Pobierz czasy ostatniego odczytu
-    const getReadTime = (key) => parseInt(localStorage.getItem(`lastRead_${key}`) || '0', 10);
-
-    const unsubGlobal = onSnapshot(collection(db, 'messages'), (snapshot) => {
-      const readTime = getReadTime('global');
-      let count = 0;
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.senderId !== currentUser.uid) {
-          const msgTime = data.createdAt?.toMillis ? data.createdAt.toMillis() : (data.localTimestamp || 0);
-          if (msgTime > readTime) count++;
-        }
-      });
-      setUnreadCounts(prev => ({ ...prev, global: count }));
-    });
-
-    const unsubImportant = onSnapshot(collection(db, 'important_messages'), (snapshot) => {
-      const readTime = getReadTime('important');
-      let count = 0;
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.senderId !== currentUser.uid) {
-          const msgTime = data.createdAt?.toMillis ? data.createdAt.toMillis() : (data.localTimestamp || 0);
-          if (msgTime > readTime) count++;
-        }
-      });
-      setUnreadCounts(prev => ({ ...prev, important: count }));
-    });
-
-    const unsubDirect = onSnapshot(
-      query(collection(db, 'direct_messages'), where('participants', 'array-contains', currentUser.uid)),
-      (snapshot) => {
-        const counts = {};
-        snapshot.docs.forEach(doc => {
-          const data = doc.data();
-          if (data.senderId !== currentUser.uid) {
-            const readTime = getReadTime(`direct_${data.senderId}`);
-            const msgTime = data.createdAt?.toMillis ? data.createdAt.toMillis() : (data.localTimestamp || 0);
-            if (msgTime > readTime) {
-              counts[data.senderId] = (counts[data.senderId] || 0) + 1;
-            }
-          }
-        });
-        setUnreadCounts(prev => ({ ...prev, direct: counts }));
-      }
-    );
-
-    return () => {
-      unsubGlobal();
-      unsubImportant();
-      unsubDirect();
-    };
-  }, [currentUser]);
-
   // Aktualizuj czas odczytu przy zmianie czatu LUB nowej wiadomości
   useEffect(() => {
     if (!currentUser) return;
     
-    let key = '';
-    if (chatType === 'global') key = 'global';
-    else if (chatType === 'important') key = 'important';
-    else if (chatType === 'direct' && selectedUser) key = `direct_${selectedUser.id}`;
-
     // Mark as read if chat is active (either mobile view or desktop view)
     const isMobile = window.innerWidth < 768;
     const isVisible = isMobile ? !showUserList : true;
 
-    if (key && isVisible) {
-      const now = Date.now();
-      localStorage.setItem(`lastRead_${key}`, now.toString());
-      
-      // Powiadom Layout.jsx o zmianie stanu odczytania
-      window.dispatchEvent(new CustomEvent('chat_read_update', { 
-        detail: { key, timestamp: now } 
-      }));
-
-      setUnreadCounts(prev => {
-        if (chatType === 'direct') {
-          const newDirect = { ...prev.direct };
-          delete newDirect[selectedUser.id];
-          return { ...prev, direct: newDirect };
-        }
-        return { ...prev, [chatType]: 0 };
-      });
+    if (isVisible) {
+      if (chatType === 'global') markAsRead('global');
+      else if (chatType === 'important') markAsRead('important');
+      else if (chatType === 'direct' && selectedUser) markAsRead('direct', selectedUser.id);
     }
-  }, [chatType, selectedUser, showUserList, currentUser, messages.length]); // Dodano messages.length
+  }, [chatType, selectedUser, showUserList, currentUser, messages.length]);
 
   // Pobierz wiadomości
   useEffect(() => {
