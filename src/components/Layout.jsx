@@ -118,8 +118,6 @@ export default function Layout() {
     { to: "/chat", icon: MessageSquare, label: "Czat", badge: totalUnread > 0 ? totalUnread : false },
     { to: "/profile", icon: Menu, label: "Menu" }
   ];
-bel: "Menu" }
-  ];
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-950 pb-16">
