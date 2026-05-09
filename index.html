@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#dc2626" />
+    <title>ETOS Grafik</title>
+    <link rel="apple-touch-icon" href="/icon.png">
+    <link rel="icon" type="image/png" href="/icon.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <script>
+      (function() {
+        try {
+          const theme = localStorage.getItem('theme') || 'light';
+          const root = document.documentElement;
+          const body = document.body;
+          if (theme === 'dark') {
+            root.classList.add('dark');
+            if (body) body.classList.add('dark');
+            root.style.colorScheme = 'dark';
+          } else {
+            root.classList.remove('dark');
+            if (body) body.classList.remove('dark');
+            root.style.colorScheme = 'light';
+          }
+          console.log('Initial Theme:', theme);
+        } catch (e) { console.error('Theme init error:', e); }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

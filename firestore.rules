@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Użytkownicy: każdy zalogowany może czytać listę, pisać do swojego profilu, a admin może wszystkim
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        (request.auth.uid == userId || 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+    
+    // Czat Ogólny: każdy zalogowany może czytać i pisać
+    match /messages/{messageId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Czat Prywatny: tylko uczestnicy rozmowy mogą czytać i pisać
+    match /direct_messages/{messageId} {
+      allow read, write: if request.auth != null && 
+        (request.auth.uid in request.resource.data.participants || 
+         (resource != null && request.auth.uid in resource.data.participants));
+    }
+    
+    // Ważne Ogłoszenia: każdy czyta, każdy może update (reakcje), admin tworzy i usuwa
+    match /important_messages/{messageId} {
+      allow read, update: if request.auth != null;
+      allow create, delete: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Grafiki: każdy może czytać, tylko admin może pisać
+    match /schedules/{scheduleId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Prośby o zamianę / Giełda: każdy zalogowany może czytać i pisać
+    match /swap_requests/{requestId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Dyspozycje: każdy zalogowany może czytać i pisać (uproszczone dla giełdy/grafiku)
+    match /availabilities/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
